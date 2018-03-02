@@ -23,9 +23,9 @@ STATE_DATA_PULL_DOWN = 5
 # Setup for relays
 SERVO_RELAY_PIN = 5
 GPIO.setup(SERVO_RELAY_PIN, GPIO.OUT)
-LIGHT_RELAY_PIN = 6
+LIGHT_RELAY_PIN = 19
 GPIO.setup(LIGHT_RELAY_PIN, GPIO.OUT)
-FAN_RELAY_PIN = 7
+FAN_RELAY_PIN = 26
 GPIO.setup(FAN_RELAY_PIN, GPIO.OUT)
 
 # Setup for LCD
@@ -67,7 +67,7 @@ def sendemail(message, subject, last_email_sent):
     # os.system('echo $message | mail NOTIFICATION_EMAIL -s "$subject" ')
     # Only send an email every hour
     if (time.time() - last_email_sent) > 3600:
-        logging.info("Send email to %s. Message:%s" % (NOTIFICATION_EMAIL,message))
+        logging.info("Send email to %s. Message:%s" % (NOTIFICATION_EMAIL, message))
         last_email_sent = time.time()
 
 
@@ -179,31 +179,35 @@ def read_dht11_dat():
 def gethumiture(last_email_sent):
     result = False
     myresult = False
-    cnt=0
+    cnt = 0
 
     # Keep trying until we get a valid result
-    while (result != False) and (cnt<10):
+    while (result != False) and (cnt < 10):
         cnt += 1
+
+        # Gather 3 measurements and average across them
         for i in range(3):
-           result = read_dht11_dat()
-           if result:
-               humidity, temperature = result
-               if i == 0:
-                   mytemp =95
-                   myhumidity = 60
-               fahrenheit_temp = 9.0/5.0 * temperature + 32
-               mytemp = average(mytemp, fahrenheit_temp)
-               myhumidity = average(myhumidity, humidity) 
-               myresult = myhumidity, mytemp
+            result = read_dht11_dat()
+            if result:
+                humidity, temperature = result
+                # Set the initial values to average against in the first loop
+                if i == 0:
+                    mytemp = 95
+                    myhumidity = 60
+                fahrenheit_temp = 9.0/5.0 * temperature + 32
+                mytemp = average(mytemp, fahrenheit_temp)
+                myhumidity = average(myhumidity, humidity)
+                myresult = myhumidity, mytemp
+            time.sleep(2)
 
     if result:
         logging.info("Humidity: %s%%,  Temperature: %s˚F" % (myhumidity, mytemp))
     else:
         # If we're never successful, send notifications
-        sendemail('Can\'t get good humiture data after 5 tries', 
-                  'Bad Humiture data',
-                  last_email_sent)
-        logging.warning("Humiture failed after 5 tries")
+#        sendemail('Can\'t get good humiture data after 5 tries', 
+#                  'Bad Humiture data',
+#                  last_email_sent)
+        logging.warning("Humiture failed after 10 tries")
 
     return myresult
 
@@ -211,7 +215,7 @@ def gethumiture(last_email_sent):
 def rotate_eggs(degrees, camera):
     GPIO.output(SERVO_RELAY_PIN, GPIO.HIGH)
     if (degrees < 0) or (degrees > 180):
-        logging.error("ERROR: Degrees=" + str(degrees) + " and is only allow to be 0-180 for servo")
+        logging.error("ERROR: Degrees=" + str(degrees) + " and is only allowed to be 0-180 for servo.")
         degrees = 0
 
     picfile = PICTURE_FILENAME + "." + gettime() + ".h264"
@@ -225,7 +229,7 @@ def rotate_eggs(degrees, camera):
     time.sleep(8)
     camera.stop_recording()
     camera.stop_preview()
-    GPIO.output(LIGHT_RELAY_PIN, GPIO.HIGH)  # Light on
+    GPIO.output(LIGHT_RELAY_PIN, GPIO.HIGH)  # Light off
 
     logging.info("Rotate eggs " + str(degrees) + "˚")
 
@@ -245,7 +249,7 @@ def minutes():
 def main():
     logging.info("****************** Starting pibater ****************** ")
     temp = 95  # Set initial values in case humiture doesn't work
-    humidity = 65
+    humidity = 50
     camera = picamera.PiCamera()
 
     GPIO.output(FAN_RELAY_PIN, GPIO.LOW)  # Turn on Fan
@@ -267,15 +271,16 @@ def main():
             logging.info("Temp: %s˚F, so turning light off" % temp)
 
         if (humidity < MIN_HUMIDITY) or (humidity > MAX_HUMIDITY):
-            sendemail("Humidity out of the range:" + str(humidity) + "%%", 
-                      "Humidity out of range.", 
-                       last_email_sent)
+            logging.info("Humidity out of range" + str(humidity) + "%%")
+#            sendemail("Humidity out of the range:" + str(humidity) + "%%", 
+#                      "Humidity out of range.", 
+#                       last_email_sent)
 
-        if int(hour()) % 3 == 0:  # If hour evenly divisible (mod) by 3
-            if int(hour()) % 2 == 0:  # If even hour turn left
-                rotate_eggs(LEFT_DEGREES, camera)
-            else:
-                rotate_eggs(RIGHT_DEGREES, camera)
+#        if int(hour()) % 3 == 0:  # If hour evenly divisible (mod) by 3
+#            if int(hour()) % 2 == 0:  # If even hour turn left
+#                rotate_eggs(LEFT_DEGREES, camera)
+#            else:
+#                rotate_eggs(RIGHT_DEGREES, camera)
 
         if int(minutes()) % 15 == 0:  # Take a picture every 15 minutes
             GPIO.output(LIGHT_RELAY_PIN, GPIO.LOW)  # Light on
@@ -285,8 +290,8 @@ def main():
             GPIO.output(LIGHT_RELAY_PIN, GPIO.HIGH)
 
         # Update LCD Message
-        LCD1602.write(0, 0, gettime() + ' ' + str(temp) + '˚F ' + str(humidity) + '%')
-        LCD1602.write(1, 1, 'Last activity')
+        LCD1602.write(0, 0, str(temp) + '˚F ' + str(humidity) + '%')
+        LCD1602.write(1, 1, gettime())
         time.sleep(60)
 
 
@@ -302,3 +307,4 @@ if __name__ == '__main__':
         main()
     except KeyboardInterrupt:
         destroy()
+
